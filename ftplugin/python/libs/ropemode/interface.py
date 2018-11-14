@@ -157,7 +157,7 @@ class RopeMode(object):
     def pop_mark(self):
         self.env.pop_mark()
 
-    @decorators.local_command()
+    @decorators.local_function()
     def definition_location(self):
         definition = self._base_definition_location()
         if definition:
@@ -180,10 +180,10 @@ class RopeMode(object):
     @decorators.local_command('a d', 'P', 'C-c d')
     def show_doc(self, prefix):
         self._check_project()
-        self._base_show_doc(prefix, codeassist.get_doc)
+        self._base_show_doc(prefix, self._base_get_doc(codeassist.get_doc))
 
-    @decorators.local_command('a c', 'P')
-    def show_calltip(self, prefix):
+    @decorators.local_function()
+    def get_calltip(self):
         self._check_project()
         def _get_doc(project, text, offset, *args, **kwds):
             try:
@@ -191,16 +191,19 @@ class RopeMode(object):
             except ValueError:
                 return None
             return codeassist.get_calltip(project, text, offset, *args, **kwds)
-        self._base_show_doc(prefix, _get_doc)
+        return self._base_get_doc(_get_doc)
 
-    def _base_show_doc(self, prefix, get_doc):
-        docs = self._base_get_doc(get_doc)
+    @decorators.local_command('a c', 'P')
+    def show_calltip(self, prefix):
+        self._base_show_doc(prefix, self.get_calltip())
+
+    def _base_show_doc(self, prefix, docs):
         if docs:
             self.env.show_doc(docs, prefix)
         else:
             self.env.message('No docs available!')
 
-    @decorators.local_command()
+    @decorators.local_function()
     def get_doc(self):
         self._check_project()
         return self._base_get_doc(codeassist.get_doc)
@@ -272,11 +275,11 @@ class RopeMode(object):
     def auto_import(self):
         _CodeAssist(self, self.env).auto_import()
 
-    @decorators.local_command()
+    @decorators.local_function([])
     def completions(self):
         return _CodeAssist(self, self.env).completions()
 
-    @decorators.local_command()
+    @decorators.local_function([])
     def extended_completions(self):
         return _CodeAssist(self, self.env).extended_completions()
 
@@ -455,6 +458,13 @@ class RopeMode(object):
         if resource and resource.exists():
             return resource
 
+    @decorators.global_command()
+    def get_project_root(self):
+        if self.project is not None:
+            return self.project.root.real_path
+        else:
+            return None
+
     def _check_project(self):
         if self.project is None:
             if self.env.get('guess_project'):
@@ -541,6 +551,18 @@ class Location(object):
         if hasattr(self.location, 'lineno'):
             return self.location.lineno
         return self.location.resource.read().count('\n', 0, self.offset) + 1
+
+    @property
+    def line_content(self):
+        resource_contents = self.location.resource.read()
+        # rfind returns -1 for start of string, so by adding 1 we get the start
+        # of the string. When a match is found we want to exclude the matching
+        # character so again we add 1.
+        line_start = resource_contents.rfind("\n", 0, self.offset) + 1
+        line_end = resource_contents.find("\n", self.offset)
+        if line_end < 0:
+            line_end = len(resource_contents)
+        return resource_contents[line_start:line_end]
 
 
 class _CodeAssist(object):

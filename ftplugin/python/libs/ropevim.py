@@ -93,10 +93,18 @@ class VimUtils(ropemode.environment.Environment):
 
     def _get_encoding(self):
         return vim.eval('&encoding')
+
     def _encode_line(self, line):
-        return line.encode(self._get_encoding())
+        if isinstance(line, bytes):
+            return line.encode(self._get_encoding())
+        else:
+            return line
+
     def _decode_line(self, line):
-        return line.decode(self._get_encoding())
+        if isinstance(line, bytes):
+            return line.decode(self._get_encoding())
+        else:
+            return line
 
     def _position_to_offset(self, lineno, colno):
         result = min(colno, len(self.buffer[lineno -1]) + 1)
@@ -270,7 +278,7 @@ class VimUtils(ropemode.environment.Environment):
         globals()[name] = callback
         arg = 'None' if prefix else ''
         vim.command('function! %s()\n' % _vim_name(name) +
-                    'python ropevim.%s(%s)\n' % (name, arg) +
+                    'python3 ropevim.%s(%s)\n' % (name, arg) +
                     'endfunction\n')
 
     def _completion_data(self, proposal):
@@ -365,9 +373,9 @@ class VimProgress(object):
 
 
 def echo(message):
-    if isinstance(message, unicode):
+    if isinstance(message, str):
         message = message.encode(vim.eval('&encoding'))
-    print message
+    print(message)
 
 def call(command):
     return vim.eval(command)
@@ -377,10 +385,10 @@ class _ValueCompleter(object):
 
     def __init__(self):
         self.values = []
-        vim.command('python import vim')
+        vim.command('python3 import vim')
         vim.command('function! RopeValueCompleter(A, L, P)\n'
-                    'python args = [vim.eval("a:" + p) for p in "ALP"]\n'
-                    'python ropevim._completer(*args)\n'
+                    'python3 args = [vim.eval("a:" + p) for p in "ALP"]\n'
+                    'python3 ropevim._completer(*args)\n'
                     'return s:completions\n'
                     'endfunction\n')
 

@@ -10,6 +10,12 @@ import os
 import shutil
 import subprocess
 
+import rope.base.utils.pycompat as pycompat
+
+try:
+    unicode
+except NameError:
+    unicode = str
 
 def create_fscommands(root):
     dirlist = os.listdir(root)
@@ -199,11 +205,13 @@ def unicode_to_file_data(contents, encoding=None):
     except UnicodeEncodeError:
         return contents.encode('utf-8')
 
+
 def file_data_to_unicode(data, encoding=None):
     result = _decode_data(data, encoding)
     if '\r' in result:
         result = result.replace('\r\n', '\n').replace('\r', '\n')
     return result
+
 
 def _decode_data(data, encoding):
     if isinstance(data, unicode):
@@ -227,7 +235,6 @@ def read_file_coding(path):
     file = open(path, 'b')
     count = 0
     result = []
-    buffsize = 10
     while True:
         current = file.read(10)
         if not current:
@@ -239,29 +246,43 @@ def read_file_coding(path):
 
 
 def read_str_coding(source):
+    if type(source) == bytes:
+        newline = b'\n'
+    else:
+        newline = '\n'
+    #try:
+    #    source = source.decode("utf-8")
+    #except AttributeError:
+    #    pass
     try:
-        first = source.index('\n') + 1
-        second = source.index('\n', first) + 1
+        first = source.index(newline) + 1
+        second = source.index(newline, first) + 1
     except ValueError:
         second = len(source)
     return _find_coding(source[:second])
 
 
 def _find_coding(text):
-    coding = 'coding'
+    if isinstance(text, pycompat.str):
+        text = text.encode('utf-8')
+    coding = b'coding'
+    to_chr = chr if pycompat.PY3 else lambda x: x
     try:
         start = text.index(coding) + len(coding)
-        if text[start] not in '=:':
+        if text[start] not in b'=:':
             return
         start += 1
-        while start < len(text) and text[start].isspace():
+        while start < len(text) and to_chr(text[start]).isspace():
             start += 1
         end = start
         while end < len(text):
             c = text[end]
-            if not c.isalnum() and c not in '-_':
+            if not to_chr(c).isalnum() and c not in b'-_':
                 break
             end += 1
-        return text[start:end]
+        result = text[start:end]
+        if isinstance(result, bytes):
+            result = result.decode('utf-8')
+        return result
     except ValueError:
         pass
